@@ -88,7 +88,7 @@ var defaultOffer = function(nama, gaji) {
 
 var defaults = {
   tab: 0, showAsumsi: true,
-  ptkpStatus: 'TK0', jkkRate: 0.54, jpCap: 11086400,
+  ptkpStatus: 'TK0', jkkRate: 0.54,
   offerA: defaultOffer('', 15000000),
   offerB: defaultOffer('', 16000000)
 };
@@ -147,6 +147,10 @@ function pct(v, dec) { return num(v, dec === undefined ? 1 : dec).replace(/,0$/,
 
 // ---------- PPh 21 (Pasal 17 progresif, annual) ----------
 var PTKP_TABLE = { TK0: 54000000, K0: 58500000, K1: 63000000, K2: 67500000, K3: 70000000 };
+// Batas upah Jaminan Pensiun, sama untuk semua orang, ditetapkan BPJS Ketenagakerjaan.
+// Berlaku sejak Maret 2026 (SE BPJS Ketenagakerjaan No. B/1226/022026), naik tiap tahun sekitar Februari/Maret.
+// Update angka ini di sini kalau BPJS Ketenagakerjaan mengumumkan batas baru, cek bpjsketenagakerjaan.go.id
+var JP_CAP = 11086300;
 var PTKP_LABEL = { TK0: 'Lajang (TK/0)', K0: 'Kawin, tanpa tanggungan (K/0)', K1: 'Kawin, 1 tanggungan (K/1)', K2: 'Kawin, 2 tanggungan (K/2)', K3: 'Kawin, 3 tanggungan (K/3)' };
 
 function progressiveTax(pkp) {
@@ -175,7 +179,7 @@ function computeOffer(o, shared) {
   var bpjsKesBase = Math.min(monthlyFixed, 12000000);
   var bpjsKesEmp = bpjsKesBase * 0.01, bpjsKesEmployer = bpjsKesBase * 0.04;
   var jhtEmp = monthlyFixed * 0.02, jhtEmployer = monthlyFixed * 0.037;
-  var jpBase = Math.min(monthlyFixed, shared.jpCap);
+  var jpBase = Math.min(monthlyFixed, JP_CAP);
   var jpEmp = jpBase * 0.01, jpEmployer = jpBase * 0.02;
   var jkkEmployer = monthlyFixed * (shared.jkkRate / 100);
   var jkmEmployer = monthlyFixed * 0.003;
@@ -355,10 +359,8 @@ function template() {
       '<input id="f-jkkRate" data-bind="jkkRate" type="range" min="0.24" max="1.74" step="0.05" value="' + s.jkkRate + '">' +
       '<div style="font:400 11px/1.5 \'Public Sans\';color:#55636F;">0,24% untuk risiko rendah (kantoran) sampai 1,74% untuk risiko tinggi. Tanya HR kalau tidak yakin.</div></div>' +
       '<div><label style="font:500 12.5px/1.3 \'Public Sans\';color:#1B2430;display:block;margin-bottom:6px;">Batas upah Jaminan Pensiun (JP)</label>' +
-      '<div style="display:flex;align-items:center;gap:6px;border-bottom:1.5px solid #1B2430;padding-bottom:5px;max-width:220px;">' +
-      '<span style="font:500 12px/1 \'JetBrains Mono\',monospace;color:#55636F;">Rp</span>' +
-      '<input id="f-jpCap" data-bind="jpCap" data-parse="digits" inputmode="numeric" value="' + full(s.jpCap) + '" style="flex:1;border:0;outline:none;background:transparent;font:600 15px/1.2 \'JetBrains Mono\',monospace;color:#1B2430;min-width:0;"></div>' +
-      '<div style="font:400 11px/1.5 \'Public Sans\';color:#55636F;margin-top:6px;">Batas ini naik berkala. Cek angka terbaru di bpjsketenagakerjaan.go.id sebelum mengandalkan hasil ini untuk keputusan besar.</div></div>' +
+      '<div style="font:600 15px/1.2 \'JetBrains Mono\',monospace;color:#1B2430;">' + rp(JP_CAP) + '</div>' +
+      '<div style="font:400 11px/1.5 \'Public Sans\';color:#55636F;margin-top:6px;">Batas ini sama untuk semua orang, ditetapkan BPJS Ketenagakerjaan, bukan oleh perusahaan. Gaji di atas angka ini tetap dihitung JP-nya hanya sampai batas ini. Berlaku sejak Maret 2026 (SE BPJS Ketenagakerjaan No. B/1226/022026), naik tiap tahun sekitar Februari/Maret.</div></div>' +
       '<div style="font:400 11px/1.6 \'Public Sans\';color:#8A97A0;padding-top:10px;border-top:1px dashed #C7CFD3;">Tarif PPh 21 memakai skema progresif Pasal 17 tahunan (5% sampai 35%). BPJS Kesehatan 5% (batas Rp12 juta), JHT 5,7%, JP 3%, JKM 0,3%. Sumber: aturan berlaku per pertengahan 2026, bisa berubah.</div>' +
       '</div>';
   }
