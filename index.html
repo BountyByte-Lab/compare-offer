@@ -632,65 +632,241 @@ function helpStep(n, title, body) {
     '<div style="font:400 12.5px/1.55 \'Public Sans\';color:#55636F;">' + body + '</div></div></div>';
 }
 // ---------- summary image (canvas, native APIs only, no external libraries) ----------
+function wrapLines(ctx, text, maxWidth) {
+  var words = text.split(' ');
+  var lines = [];
+  var current = '';
+  for (var i = 0; i < words.length; i++) {
+    var test = current ? current + ' ' + words[i] : words[i];
+    if (ctx.measureText(test).width > maxWidth && current) {
+      lines.push(current);
+      current = words[i];
+    } else {
+      current = test;
+    }
+  }
+  if (current) lines.push(current);
+  return lines;
+}
+function truncateText(ctx, text, maxWidth) {
+  if (ctx.measureText(text).width <= maxWidth) return text;
+  var out = text;
+  while (out.length > 1 && ctx.measureText(out + '\u2026').width > maxWidth) {
+    out = out.slice(0, -1);
+  }
+  return out + '\u2026';
+}
+function stripHtml(str) {
+  return String(str).replace(/<[^>]*>/g, '');
+}
+
 function buildSummaryCanvas() {
   var s = state;
   var cA = computeOffer(s.offerA, s);
   var cB = computeOffer(s.offerB, s);
+  var callouts = buildCallouts(s, cA, cB);
   var diff = cA.takeHomeAnnual - cB.takeHomeAnnual;
   var leaderKey = diff === 0 ? null : (diff > 0 ? 'offerA' : 'offerB');
+  var leaderName = leaderKey ? offerDisplayName(s, leaderKey) : null;
 
-  var W = 1080, H = 1080;
+  var breakdownRows = [
+    ['Gaji + tunjangan tetap', cA.annualFixed, cB.annualFixed, false],
+    ['THR', cA.thrAmt, cB.thrAmt, false],
+    ['Bonus (estimasi)', cA.bonusAmt, cB.bonusAmt, false],
+    ['Total gross', cA.grossAnnual, cB.grossAnnual, true],
+    ['Potongan BPJS (bagian karyawan)', -cA.empBpjsAnnual, -cB.empBpjsAnnual, false],
+    ['PPh 21', -cA.pph21Annual, -cB.pph21Annual, false],
+    ['Total nett', cA.takeHomeAnnual, cB.takeHomeAnnual, true],
+    ['Nilai BPJS ditanggung perusahaan', cA.employerBenefitAnnual, cB.employerBenefitAnnual, false]
+  ];
+  if (s.offerA.useEsop || s.offerB.useEsop) {
+    breakdownRows.push([
+      'ESOP (estimasimu, belum tentu bisa dicairkan)',
+      s.offerA.useEsop ? s.offerA.esopAmount : 0,
+      s.offerB.useEsop ? s.offerB.esopAmount : 0,
+      false
+    ]);
+  }
+
+  var W = 1080;
+  var margin = 60;
+  var contentW = W - margin * 2;
+
+  // measuring context to compute wrapped callout heights before knowing final canvas height
+  var meas = document.createElement('canvas').getContext('2d');
+  meas.font = '400 26px Arial, sans-serif';
+  var calloutLineGroups = callouts.map(function(c){ return wrapLines(meas, stripHtml(c), contentW - 40); });
+
+  // ---- layout heights ----
+  var headerH = 800;
+  var calloutsH = 0;
+  if (callouts.length) {
+    calloutsH = 70; // top padding + label
+    calloutLineGroups.forEach(function(lines, idx){
+      calloutsH += lines.length * 34;
+      calloutsH += idx < calloutLineGroups.length - 1 ? 28 : 40; // gap between callouts / bottom padding
+    });
+  }
+  var rowH = 58;
+  var breakdownH = 60 + breakdownRows.length * rowH + 20;
+  var gap = 20;
+  var footerH = 80;
+  var H = headerH + (callouts.length ? gap + calloutsH : 0) + gap + breakdownH + footerH;
+
   var canvas = document.createElement('canvas');
   canvas.width = W; canvas.height = H;
   var ctx = canvas.getContext('2d');
-
-  ctx.fillStyle = '#1B2430';
-  ctx.fillRect(0, 0, W, H);
   ctx.textBaseline = 'top';
+
+  ctx.fillStyle = '#E4E8EA';
+  ctx.fillRect(0, 0, W, H);
+
+  var y = 0;
+
+  // ---- header / verdict (dark) ----
+  ctx.fillStyle = '#1B2430';
+  ctx.fillRect(0, y, W, headerH);
 
   ctx.fillStyle = '#8A97A0';
   ctx.font = '600 24px Arial, sans-serif';
-  ctx.fillText('PERBANDINGAN TAWARAN KERJA', 60, 60);
+  ctx.fillText('TAKE-HOME TAHUNAN RIIL', margin, y + 50);
 
-  ctx.fillStyle = '#F4F6F7';
-  ctx.font = '700 46px Arial, sans-serif';
-  ctx.fillText('Take-home Tahunan', 60, 110);
-
-  function offerBlock(y, key, color) {
+  function offerBlock(by, key, color) {
     var c = key === 'offerA' ? cA : cB;
     var name = offerDisplayName(s, key);
+    ctx.font = '600 32px Georgia, serif';
+    var nameMaxW = contentW - 280;
+    var displayName = truncateText(ctx, name, nameMaxW);
     ctx.fillStyle = color;
-    ctx.fillRect(60, y, 10, 130);
+    ctx.fillRect(margin, by, 10, 130);
     ctx.fillStyle = '#F4F6F7';
-    ctx.font = '600 32px Arial, sans-serif';
-    ctx.fillText(name + (leaderKey === key ? '   \u2605 UNGGUL' : ''), 90, y);
+    ctx.fillText(displayName, margin + 30, by);
+    if (leaderKey === key) {
+      var badgeX = margin + 30 + ctx.measureText(displayName).width + 16;
+      ctx.strokeStyle = '#7FD9A8';
+      ctx.lineWidth = 1.5;
+      var badgeW = 110, badgeH = 34;
+      roundRect(ctx, badgeX, by - 2, badgeW, badgeH, 17);
+      ctx.stroke();
+      ctx.fillStyle = '#7FD9A8';
+      ctx.font = '700 16px Arial, sans-serif';
+      ctx.fillText('UNGGUL', badgeX + 16, by + 9);
+    }
     ctx.fillStyle = color;
     ctx.font = '700 54px Arial, sans-serif';
-    ctx.fillText(rp(c.takeHomeAnnual), 90, y + 46);
+    ctx.fillText(rp(c.takeHomeAnnual), margin + 30, by + 46);
     ctx.fillStyle = '#8A97A0';
     ctx.font = '400 24px Arial, sans-serif';
-    ctx.fillText('kira-kira ' + rp(c.takeHomeMonthlyAvg) + ' / bulan', 90, y + 106);
+    ctx.fillText('kira-kira ' + rp(c.takeHomeMonthlyAvg) + ' / bulan', margin + 30, by + 106);
   }
 
-  offerBlock(230, 'offerA', '#5B8FE0');
-  offerBlock(440, 'offerB', '#E0AC5B');
+  offerBlock(y + 90, 'offerA', '#5B8FE0');
+  offerBlock(y + 300, 'offerB', '#E0AC5B');
 
   ctx.strokeStyle = '#2E3947';
   ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(60, 640); ctx.lineTo(W - 60, 640); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(margin, y + 500); ctx.lineTo(W - margin, y + 500); ctx.stroke();
 
   ctx.fillStyle = '#8A97A0';
   ctx.font = '500 24px Arial, sans-serif';
-  ctx.fillText('Selisih take-home tahunan', 60, 670);
+  ctx.fillText('Selisih take-home tahunan', margin, y + 530);
   ctx.fillStyle = '#F4F6F7';
-  ctx.font = '700 42px Arial, sans-serif';
-  ctx.fillText(rp(Math.abs(diff)), 60, 706);
+  ctx.font = '700 40px Arial, sans-serif';
+  var diffText = rp(Math.abs(diff)) + (leaderName ? '  (' + leaderName + ' lebih tinggi)' : '');
+  ctx.fillText(truncateText(ctx, diffText, contentW), margin, y + 566);
 
+  y += headerH;
+
+  // ---- callouts (cream) ----
+  if (callouts.length) {
+    y += gap;
+    ctx.fillStyle = '#F2EADB';
+    ctx.fillRect(0, y, W, calloutsH);
+    ctx.strokeStyle = '#C7CFD3';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(0.5, y + 0.5, W - 1, calloutsH - 1);
+
+    var cy = y + 34;
+    ctx.fillStyle = '#55636F';
+    ctx.font = '600 20px Arial, sans-serif';
+    ctx.fillText('HAL YANG PERLU DIPERHATIKAN', margin, cy);
+    cy += 46;
+
+    ctx.font = '400 26px Arial, sans-serif';
+    calloutLineGroups.forEach(function(lines, idx){
+      if (idx > 0) {
+        ctx.strokeStyle = '#DED5C4';
+        ctx.beginPath(); ctx.moveTo(margin, cy - 14); ctx.lineTo(W - margin, cy - 14); ctx.stroke();
+      }
+      ctx.fillStyle = '#4A443C';
+      lines.forEach(function(line){
+        ctx.fillText(line, margin, cy);
+        cy += 34;
+      });
+      cy += idx < calloutLineGroups.length - 1 ? 14 : 0;
+    });
+
+    y += calloutsH;
+  }
+
+  // ---- breakdown table (white) ----
+  y += gap;
+  ctx.fillStyle = '#F9FAFA';
+  ctx.fillRect(0, y, W, breakdownH);
+  ctx.strokeStyle = '#C7CFD3';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(0.5, y + 0.5, W - 1, breakdownH - 1);
+
+  var by2 = y + 40;
+  ctx.fillStyle = '#55636F';
+  ctx.font = '600 20px Arial, sans-serif';
+  ctx.fillText('RINCIAN TAHUNAN', margin, by2);
+  by2 += 44;
+
+  var col2Right = margin + contentW * 0.68;
+  var col3Right = W - margin;
+
+  breakdownRows.forEach(function(row, idx){
+    if (idx > 0) {
+      ctx.strokeStyle = '#DED5C4';
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath(); ctx.moveTo(margin, by2 - 14); ctx.lineTo(W - margin, by2 - 14); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    var isBold = row[3];
+    ctx.font = (isBold ? '600' : '400') + ' 24px Arial, sans-serif';
+    ctx.fillStyle = isBold ? '#1B2430' : '#55636F';
+    ctx.fillText(truncateText(ctx, row[0], col2Right - margin - 220), margin, by2);
+
+    ctx.font = (isBold ? '700' : '500') + ' 23px Arial, sans-serif';
+    ctx.fillStyle = isBold ? '#1B2430' : '#333F49';
+    var v1 = rp(row[1]);
+    ctx.fillText(v1, col2Right - ctx.measureText(v1).width, by2);
+    var v2 = rp(row[2]);
+    ctx.fillText(v2, col3Right - ctx.measureText(v2).width, by2);
+
+    by2 += rowH;
+  });
+
+  y += breakdownH;
+
+  // ---- footer ----
+  y += gap;
   ctx.fillStyle = '#55636F';
   ctx.font = '400 20px Arial, sans-serif';
-  ctx.fillText(BRAND + ', dibuat oleh ' + CREATOR, 60, H - 60);
+  ctx.fillText(BRAND + ', dibuat oleh ' + CREATOR, margin, y + 24);
 
   return canvas;
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
 }
 
 function downloadSummaryImage() {
