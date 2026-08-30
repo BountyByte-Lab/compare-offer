@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kode Akses · Perbandingan Tawaran Kerja</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, -apple-system, sans-serif; background: #E4E8EA; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; color: #1B2430; -webkit-font-smoothing: antialiased; }
+.card { background: #F9FAFA; border: 1px solid #1B2430; border-radius: 6px; width: 100%; max-width: 400px; overflow: hidden; }
+.header { background: #1B2430; padding: 20px 24px; }
+.header-brand { font-size: 11px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: #8A97A0; margin-bottom: 6px; }
+.header-title { font-size: 20px; font-weight: 600; color: #F4F6F7; }
+.header-sub { font-size: 12px; color: #8A97A0; margin-top: 4px; }
+.body { padding: 24px; }
+.label { font-size: 10px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #55636F; margin-bottom: 8px; }
+input[type=text] { width: 100%; border: 0; border-bottom: 1.5px solid #1B2430; background: transparent; font: 500 16px/1.3 monospace; padding: 6px 0; outline: none; color: #1B2430; letter-spacing: .06em; }
+input[type=text]::placeholder { color: #B7C0C5; font-weight: 400; }
+.error { margin-top: 8px; font-size: 12px; color: #9C3B28; min-height: 16px; }
+.btn { display: block; width: 100%; margin-top: 18px; padding: 14px; background: #1B2430; color: #F4F6F7; border: none; border-radius: 3px; font: 600 11px/1 system-ui; letter-spacing: .1em; text-transform: uppercase; cursor: pointer; transition: background .15s; }
+.btn:hover { background: #2E3947; }
+.result { display: none; margin-top: 20px; background: #FFFFFF; border: 1px solid #1B2430; border-radius: 4px; padding: 22px; text-align: center; }
+.result-label { font-size: 10px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #55636F; margin-bottom: 12px; }
+.result-code { font: 700 34px/1 monospace; letter-spacing: .14em; color: #1B2430; margin-bottom: 16px; }
+.copy-btn { background: transparent; border: 1px solid #C7CFD3; border-radius: 3px; padding: 7px 16px; font: 600 10px/1 system-ui; letter-spacing: .1em; text-transform: uppercase; color: #55636F; cursor: pointer; transition: border-color .15s, color .15s; }
+.copy-btn:hover { border-color: #1B2430; color: #1B2430; }
+.result-note { margin-top: 14px; font-size: 11.5px; color: #55636F; line-height: 1.55; }
+.divider { height: 1px; background: #C7CFD3; margin: 20px 0; }
+.steps { font-size: 12px; color: #4A5560; line-height: 1.7; }
+.steps strong { color: #1B2430; }
+.footer { padding: 14px 24px; border-top: 1px solid #C7CFD3; font-size: 11px; color: #8A97A0; }
+</style>
+</head>
+<body>
+<div class="card">
+
+  <div class="header">
+    <div class="header-brand">Perbandingan Tawaran Kerja</div>
+    <div class="header-title">Ambil Kode Akses</div>
+    <div class="header-sub">Masukkan Order ID dari halaman pembelianmu di Lynk.id</div>
+  </div>
+
+  <div class="body">
+    <div class="label">Order ID Lynk.id</div>
+    <input type="text" id="order-id" placeholder="Contoh: ORD-12345" autocapitalize="characters" autocomplete="off" spellcheck="false">
+    <div class="error" id="error"></div>
+    <button class="btn" onclick="generate()">Dapatkan Kode Akses</button>
+
+    <div class="result" id="result">
+      <div class="result-label">Kode Akses Kamu</div>
+      <div class="result-code" id="code-display"></div>
+      <button class="copy-btn" onclick="copyCode()">Salin Kode</button>
+      <div class="result-note">
+        Masukkan kode ini saat membuka kalkulator untuk pertama kali.<br>
+        Kode ini <strong>unik untuk ordermu</strong>, jangan dibagikan.
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="label">Cara pakai</div>
+    <div class="steps">
+      <strong>1.</strong> Temukan Order ID di email konfirmasi atau halaman pembelian Lynk.id<br>
+      <strong>2.</strong> Tempel di kolom atas, klik Dapatkan Kode Akses<br>
+      <strong>3.</strong> Salin kode, buka kalkulator, masukkan kode saat diminta
+    </div>
+  </div>
+
+  <div class="footer">Perbandingan Tawaran Kerja · Kode dibuat di perangkatmu, tidak dikirim ke mana pun</div>
+</div>
+
+<script>
+// Harus sama persis dengan SECRET di index.html
+var SECRET = 'yva6TdOhu75CXQJYHwhH0ymwmyjxaG';
+
+function fnv32(str) {
+  var h = 2166136261;
+  for (var i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+    h >>>= 0;
+  }
+  return h;
+}
+
+function generateCode(orderId) {
+  var id    = fnv32(orderId.trim().toUpperCase()).toString(36).toUpperCase().padStart(4, '0').slice(-4);
+  var check = fnv32(SECRET + id).toString(36).toUpperCase().padStart(4, '0').slice(-4);
+  return id + '-' + check;
+}
+
+function generate() {
+  var input   = document.getElementById('order-id');
+  var errorEl = document.getElementById('error');
+  var result  = document.getElementById('result');
+
+  var orderId = input.value.trim();
+  errorEl.textContent = '';
+  result.style.display = 'none';
+
+  if (!orderId) {
+    errorEl.textContent = 'Masukkan Order ID dari halaman pembelianmu.';
+    input.focus();
+    return;
+  }
+
+  document.getElementById('code-display').textContent = generateCode(orderId);
+  result.style.display = 'block';
+}
+
+function copyCode() {
+  var code = document.getElementById('code-display').textContent;
+  var btn  = document.querySelector('.copy-btn');
+  navigator.clipboard.writeText(code).then(function() {
+    btn.textContent = 'Tersalin \u2713';
+    setTimeout(function() { btn.textContent = 'Salin Kode'; }, 1500);
+  }).catch(function() {
+    btn.textContent = code; // fallback: show the code on button
+  });
+}
+
+document.getElementById('order-id').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') generate();
+});
+</script>
+</body>
+</html>

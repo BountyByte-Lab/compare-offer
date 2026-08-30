@@ -1,0 +1,7 @@
+name = "tawaran-kerja-gate"
+main = "worker.js"
+compatibility_date = "2024-09-23"
+
+# Secrets diset via CLI, BUKAN di sini:
+#   wrangler secret put SECRET
+#   wrangler secret put BREVO_API_KEY
